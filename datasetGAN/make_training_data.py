@@ -24,7 +24,7 @@ import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 
 import sys
-sys.path.append('..')
+sys.path.append('.')
 
 import torch
 import torch.nn as nn
@@ -61,7 +61,6 @@ def prepare_stylegan(args):
             max_layer = 7
         else:
             assert "Not implementated!"
-
         if args['average_latent'] != "":
             avg_latent = np.load(args['average_latent'])
             avg_latent = torch.from_numpy(avg_latent).type(torch.FloatTensor).to(device)
@@ -72,7 +71,6 @@ def prepare_stylegan(args):
             ('truncation', Truncation(avg_latent,max_layer=max_layer, device=device, threshold=0.7)),
             ('g_synthesis', G_synthesis( resolution=resolution))
         ]))
-
         g_all.load_state_dict(torch.load(args['stylegan_checkpoint'], map_location=device))
         g_all.eval()
         g_all = nn.DataParallel(g_all, device_ids=device_ids).cuda()
@@ -128,12 +126,10 @@ def generate_data(args, num_sample, sv_path):
         os.system('mkdir -p %s' % (sv_path))
         print('Experiment folder created at: %s' % (sv_path))
 
-
     g_all, avg_latent, upsamplers = prepare_stylegan(args)
-
     # dump avg_latent for reproducibility
     mean_latent_sv_path = os.path.join(sv_path, "avg_latent_stylegan1.npy")
-    np.save(mean_latent_sv_path, avg_latent[0].detach().cpu().numpy())
+    np.save(mean_latent_sv_path, avg_latent.detach().cpu().numpy())
 
 
     with torch.no_grad():
@@ -147,21 +143,21 @@ def generate_data(args, num_sample, sv_path):
 
 
         for i in range(num_sample):
-            if i % 10 == 0:
-                print("Genearte", i, "Out of:", num_sample)
-
+            # if i % 10 == 0:
+            print("Genearte", i, "Out of:", num_sample)
+            print('--1--', torch.cuda.mem_get_info()[0]/(1024**2))
             if i == 0:
 
                 latent = avg_latent.to(device)
+                print('--2--', torch.cuda.mem_get_info()[0]/(1024**2))
                 img, _ = latent_to_image(g_all, upsamplers, latent, dim=args['dim'][1],
                                          return_upsampled_layers=False, use_style_latents=True)
+                print('--2.0--', torch.cuda.mem_get_info()[0]/(1024**2))
             else:
                 latent = np.random.randn(1, 512)
                 latent_cache.append(copy.deepcopy(latent))
 
-
                 latent = torch.from_numpy(latent).type(torch.FloatTensor).to(device)
-
                 img, _ = latent_to_image(g_all, upsamplers, latent, dim=args['dim'][1],
                                                          return_upsampled_layers=False)
 
@@ -169,7 +165,6 @@ def generate_data(args, num_sample, sv_path):
                 img = img[:, 64:448][0]
             else:
                 img = img[0]
-
 
             img = Image.fromarray(img)
 
@@ -179,23 +174,22 @@ def generate_data(args, num_sample, sv_path):
         latent_cache = np.concatenate(latent_cache, 0)
         latent_sv_path = os.path.join(sv_path, "latent_stylegan1.npy")
         np.save(latent_sv_path, latent_cache)
+        
+        # for i, latent in enumerate(latent_cache):
+        #     latent = torch.from_numpy(latent).type(torch.FloatTensor).to(device).unsqueeze(0)
+        #     img, _ = latent_to_image(g_all, upsamplers, latent, dim=args['dim'][1],
+        #                              return_upsampled_layers=False)
 
-        for latent in latent_cache:
-
-            latent = torch.from_numpy(latent).type(torch.FloatTensor).to(device).unsqueeze(0)
-            img, _ = latent_to_image(g_all, upsamplers, latent, dim=args['dim'][1],
-                                     return_upsampled_layers=False)
-
-            if args['dim'][0] != args['dim'][1]:
-                img = img[:, 64:448][0]
-            else:
-                img = img[0]
+        #     if args['dim'][0] != args['dim'][1]:
+        #         img = img[:, 64:448][0]
+        #     else:
+        #         img = img[0]
 
 
-            img = Image.fromarray(img)
+        #     img = Image.fromarray(img)
 
-            image_name =  os.path.join(sv_path, 'reconstruct', "image_%d.jpg" % i)
-            img.save(image_name)
+        #     image_name =  os.path.join(sv_path, 'reconstruct', "image_%d.jpg" % i)
+        #     img.save(image_name)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -218,7 +212,6 @@ if __name__ == '__main__':
         print('Experiment folder created at: %s' % (path))
 
     os.system('cp %s %s' % (args.exp, opts['exp_dir']))
-
 
 
     generate_data(opts, args.num_sample, args.sv_path)

@@ -1,0 +1,5 @@
+vsk_data/
+vsk_data_check/
+__pycache__/
+checkpoints/stylegan_pretrain/*.pt
+checkpoints/training_latent/car_vsk/*.npy

@@ -24,7 +24,7 @@ import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 
 import sys
-sys.path.append('..')
+sys.path.append('.')
 
 import torch
 import torch.nn as nn
@@ -399,28 +399,30 @@ def prepare_data(args, palette):
         gc.collect()
 
         latent_input = latent_all[i].float()
-
         img, feature_maps = latent_to_image(g_all, upsamplers, latent_input.unsqueeze(0), dim=args['dim'][1],
                                             return_upsampled_layers=True, use_style_latents=args['annotation_data_from_w'])
+        print('*--3--*', torch.cuda.mem_get_info()[0]/(1024**2))
         if args['dim'][0]  != args['dim'][1]:
             # only for car
             img = img[:, 64:448]
             feature_maps = feature_maps[:, :, 64:448]
         mask = all_mask[i:i + 1]
         feature_maps = feature_maps.permute(0, 2, 3, 1)
-
+        
         feature_maps = feature_maps.reshape(-1, args['dim'][2])
         new_mask =  np.squeeze(mask)
 
         mask = mask.reshape(-1)
-
-        all_feature_maps_train[args['dim'][0] * args['dim'][1] * i: args['dim'][0] * args['dim'][1] * i + args['dim'][0] * args['dim'][1]] = feature_maps.cpu().detach().numpy().astype(np.float16)
+        print('*--4--*', torch.cuda.mem_get_info()[0]/(1024**2))
+        
+        all_feature_maps_train[args['dim'][0] * args['dim'][1] * i: args['dim'][0] * args['dim'][1] * i + args['dim'][0] * args['dim'][1]] = feature_maps.detach().cpu().numpy().astype(np.float16)
+        print('*--5--*', torch.cuda.mem_get_info()[0]/(1024**2))
         all_mask_train[args['dim'][0] * args['dim'][1] * i:args['dim'][0] * args['dim'][1] * i + args['dim'][0] * args['dim'][1]] = mask.astype(np.float16)
-
+        
         img_show =  cv2.resize(np.squeeze(img[0]), dsize=(args['dim'][1], args['dim'][1]), interpolation=cv2.INTER_NEAREST)
 
         curr_vis = np.concatenate( [im_list[i], img_show, colorize_mask(new_mask, palette)], 0 )
-
+        
         vis.append( curr_vis )
 
 
@@ -443,13 +445,12 @@ def main(args
     elif args['category'] == 'cat':
         from utils.data_util import cat_palette as palette
 
-
+    print('*--2--*', torch.cuda.mem_get_info()[0]/(1024**2))
     all_feature_maps_train_all, all_mask_train_all, num_data = prepare_data(args, palette)
-
+    print('*--5--*', torch.cuda.mem_get_info()[0]/(1024**2))
 
     train_data = trainData(torch.FloatTensor(all_feature_maps_train_all),
                            torch.FloatTensor(all_mask_train_all))
-
 
     count_dict = get_label_stas(train_data)
 
@@ -467,7 +468,6 @@ def main(args
     print(" *********************** Current dataloader length " +  str(len(train_loader)) + " ***********************")
 
     for MODEL_NUMBER in range(args['model_num']):
-
         gc.collect()
 
         classifier = pixel_classifier(numpy_class=(max_label + 1), dim=args['dim'][-1])
@@ -479,7 +479,6 @@ def main(args
         optimizer = optim.Adam(classifier.parameters(), lr=0.001)
         classifier.train()
 
-
         iteration = 0
         break_count = 0
         best_loss = 10000000
@@ -488,7 +487,7 @@ def main(args
             for X_batch, y_batch in train_loader:
                 X_batch, y_batch = X_batch.to(device), y_batch.to(device)
                 y_batch = y_batch.type(torch.long)
-                y_batch = y_batch.type(torch.long)
+                y_batch = y_batch.type(torch.long) #???
 
                 optimizer.zero_grad()
                 y_pred = classifier(X_batch)
@@ -530,11 +529,11 @@ def main(args
         gc.collect()
         model_path = os.path.join(args['exp_dir'],
                                   'model_' + str(MODEL_NUMBER) + '.pth')
-        MODEL_NUMBER += 1
+        MODEL_NUMBER += 1 #???
         print('save to:',model_path)
         torch.save({'model_state_dict': classifier.state_dict()},
                    model_path)
-        gc.collect()
+        gc.collect() #???
 
 
         gc.collect()

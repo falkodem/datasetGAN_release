@@ -73,8 +73,9 @@ def latent_to_image(g_all, upsamplers, latents, return_upsampled_layers=False, u
     if return_stylegan_latent:
 
         return  style_latents
+    print('--2.1latent--', torch.cuda.mem_get_info()[0]/(1024**2))
     img_list, affine_layers = g_all.module.g_synthesis(style_latents)
-
+    print('--2.2latent--', torch.cuda.mem_get_info()[0]/(1024**2))
     if return_only_im:
         if process_out:
             if img_list.shape[-2] > 512:
@@ -84,16 +85,17 @@ def latent_to_image(g_all, upsamplers, latents, return_upsampled_layers=False, u
             img_list = process_image(img_list)
             img_list = np.transpose(img_list, (0, 2, 3, 1)).astype(np.uint8)
         return img_list, style_latents
-
+    print('--2.3latent--', torch.cuda.mem_get_info()[0]/(1024**2))
     number_feautre = 0
-
     for item in affine_layers:
         number_feautre += item.shape[1]
-
-
-    affine_layers_upsamples = torch.FloatTensor(1, number_feautre, dim, dim).cuda()
+    
+    print('--2.4latent--', torch.cuda.mem_get_info()[0]/(1024**2))
+    affine_layers_upsamples = None
     if return_upsampled_layers:
-
+        # Initializatiion of such "empty tensor" does not consume memory when its device is CPU,
+        # but when placed on GPU - it occupies GPU memory. So initialization is placed here
+        affine_layers_upsamples = torch.FloatTensor(1, number_feautre, dim, dim).cuda()
         start_channel_index = 0
         for i in range(len(affine_layers)):
             len_channel = affine_layers[i].shape[1]
@@ -103,14 +105,16 @@ def latent_to_image(g_all, upsamplers, latents, return_upsampled_layers=False, u
 
     if img_list.shape[-2] != 512:
         img_list = upsamplers[-1](img_list)
-
+    print('--2.5latent--', torch.cuda.mem_get_info()[0]/(1024**2))
     if process_out:
         img_list = img_list.cpu().detach().numpy()
+        print('--2.6latent--', torch.cuda.mem_get_info()[0]/(1024**2))
         img_list = process_image(img_list)
+        print('--2.7latent--', torch.cuda.mem_get_info()[0]/(1024**2))
         img_list = np.transpose(img_list, (0, 2, 3, 1)).astype(np.uint8)
         # print('start_channel_index',start_channel_index)
 
-
+    print('--2.8latent--', torch.cuda.mem_get_info()[0]/(1024**2))
     return img_list, affine_layers_upsamples
 
 
